@@ -1,16 +1,23 @@
 import "./style.css";
 import * as THREE from "three";
-import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
-import * as dat from "dat.gui";
-import testVertexShader from "./shaders/test/vertex.glsl";
-import testFragmentShader from "./shaders/test/fragment.glsl";
+// import Stats from 'stats.js'
+// import * as dat from "dat.gui";
+import galaxyVertexShader from "./shaders/galaxy/vertex.glsl";
+import galaxyFragmentShader from "./shaders/galaxy/fragment.glsl";
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
+import { gsap } from 'gsap'
+
+// Stats
+// const stats = new Stats()
+// stats.showPanel(0)
+// document.body.appendChild(stats.dom)
 
 /**
  * Base
  */
 
 // Debug
-const gui = new dat.GUI();
+// const gui = new dat.GUI();
 
 // Canvas
 const canvas = document.querySelector("canvas.webgl");
@@ -18,49 +25,62 @@ const canvas = document.querySelector("canvas.webgl");
 // Scene
 const scene = new THREE.Scene();
 
+// Overlay
+const overlayGeometry = new THREE.PlaneBufferGeometry(2,2,1,1)
+const overlayMaterial = new THREE.ShaderMaterial({
+  transparent: true,
+  uniforms: {
+    uAlpha: {value: 0.9}
+  },
+  vertexShader: `
+    void main() {
+      gl_Position = vec4(position, 1.0);
+    }
+  `,
+  fragmentShader: `
+    uniform float uAlpha;
+    
+    void main(){
+      gl_FragColor = vec4(1.0, 1.0, 1.0, uAlpha);
+    }
+  `
+})
+const overlay = new THREE.Mesh(overlayGeometry, overlayMaterial)
+scene.add(overlay)
+
 /**
  * Lights
  */
-// Ambient light
-const ambientLight = new THREE.AmbientLight();
-ambientLight.color = new THREE.Color(0xffffff);
-ambientLight.intensity = 0.5;
-scene.add(ambientLight);
 
 // Directional light
-const directionalLight = new THREE.DirectionalLight(0x00fffc, 0.3);
-directionalLight.position.set(1, 0.25, 0);
-scene.add(directionalLight);
+const directionalLightParams = {
+  intensity: 12,
+  x: 0,
+  y: -1.5,
+  z: -7,
+  color: "#f03902"
+}
+let directionalLight = null
+const createDirectionalLight = () => {
+  if(directionalLight !== null){
+    directionalLight.dispose()
+    scene.remove(directionalLight)
+  }
+  directionalLight = new THREE.DirectionalLight(directionalLightParams.color, directionalLightParams.intensity);
+  directionalLight.position.set(directionalLightParams.x, directionalLightParams.y, directionalLightParams.z);
+  scene.add(directionalLight);
+}
+createDirectionalLight()
+// gui.add(directionalLightParams, 'x').min(-20).max(20).step(0.001).onFinishChange(createDirectionalLight)
 
 // Hemisphere light
-const hemisphereLight = new THREE.HemisphereLight(0xff0000, 0x0000ff, 0.3);
+const hemisphereLight = new THREE.HemisphereLight(0xffffff, 0xffffff, 2);
 scene.add(hemisphereLight);
 
 // Point light
-const pointLight = new THREE.PointLight(0xff9000, 0.5, 10, 2);
-pointLight.position.set(1, -0.5, 1);
+const pointLight = new THREE.PointLight(0xffffff, 8, 10, 2);
+pointLight.position.set(0, 0, 1);
 scene.add(pointLight);
-
-// Rect area light
-const rectAreaLight = new THREE.RectAreaLight(0x4e00ff, 2, 1, 1);
-rectAreaLight.position.set(-1.5, 0, 1.5);
-rectAreaLight.lookAt(new THREE.Vector3());
-scene.add(rectAreaLight);
-
-// Spot light
-const spotLight = new THREE.SpotLight(
-  0x78ff00,
-  0.5,
-  10,
-  Math.PI * 0.1,
-  0.25,
-  1
-);
-spotLight.position.set(0, 2, 3);
-scene.add(spotLight);
-
-spotLight.target.position.x = -0.75;
-scene.add(spotLight.target);
 
 /**
  * Sizes
@@ -88,125 +108,193 @@ window.addEventListener("resize", () => {
  * Camera
  */
 // Base camera
-const camera = new THREE.PerspectiveCamera(
-  75,
-  sizes.width / sizes.height,
-  0.1,
-  100
-);
-camera.position.x = 1;
-camera.position.y = 1;
-camera.position.z = 1;
-scene.add(camera);
+const cameraParams = {
+  fov: 75,
+  near: 0.1,
+  far: 100
+}
+let camera = null
+const createCamera = () => {
+  if(camera !== null){
+    scene.remove(camera)
+  }
+  camera = new THREE.PerspectiveCamera(
+    cameraParams.fov,
+    sizes.width / sizes.height,
+    cameraParams.near,
+    cameraParams.far
+  );
+  camera.position.x = 0;
+  camera.position.y = 1;
+  camera.position.z = 1;
+  scene.add(camera);
+}
+createCamera()
 
-// Controls
-const controls = new OrbitControls(camera, canvas);
-controls.enableDamping = true;
+const changeCameraPos = (value, pos) => {
+  camera.position[pos] = value;
+}
 
-/**
- * Test mesh
- */
-// // Geometry
-// const geometry = new THREE.PlaneBufferGeometry(1, 1, 32, 32)
+// gui.add(camera.rotation, 'x').min(-20).max(20).step(0.001).onFinishChange((value) => changeCameraPos(value,'x'))
 
-// const count = geometry.attributes.position.count
-// const randoms = new Float32Array(count)
-
-// for(let i = 0; i < count; i++)
-// {
-//     randoms[i] = Math.random()
-// }
-
-// geometry.setAttribute('aRandom', new THREE.BufferAttribute(randoms, 1))
-
-// // Material
-// const material = new THREE.ShaderMaterial({
-//     vertexShader: testVertexShader,
-//     fragmentShader: testFragmentShader,
-//     uniforms:
-//     {
-//         uFrequency: { value: new THREE.Vector2(10, 5) },
-//         uTime: { value: 0 },
-//         uColor: { value: new THREE.Color('orange') },
-//         uResolution: {value: new THREE.Vector2(1,2)}
-//     }
-// })
-
-// gui.add(material.uniforms.uFrequency.value, 'x').min(0).max(20).step(0.01).name('frequencyX')
-// gui.add(material.uniforms.uFrequency.value, 'y').min(0).max(20).step(0.01).name('frequencyY')
-
-// // Mesh
-// const mesh = new THREE.Mesh(geometry, material)
-// mesh.scale.y = 2 / 3
-// scene.add(mesh)
-
-// const curve = new THREE.EllipseCurve(
-// 	0,  0,            // ax, aY
-// 	10, 5,            // xRadius, yRadius
-// 	0,  2 * Math.PI,  // aStartAngle, aEndAngle
-// 	false,            // aClockwise
-// 	0                 // aRotation
-// );
-
-// const points = curve.getPoints( 50 );
-// const geometry = new THREE.BufferGeometry().setFromPoints( points );
-
-// const material = new THREE.LineBasicMaterial( { color : 0xff0000 } );
-
-// // Create the final object to add to the scene
-// const ellipse = new THREE.Line( geometry, material );
-// scene.add(ellipse)
-const shape = new THREE.Shape();
-const x = -5;
-const y = -10;
-shape.moveTo(x + 2.5, y + 2.5);
-shape.ellipse(x, y, 10, 5, 0, Math.PI * 2);
-// shape.bezierCurveTo(x + 2.5, y + 2.5, x + 2.5, y + 2.5, x, y);
-// shape.bezierCurveTo(x + 2.5, y + 2.5, x - 2.5, y - 2.5, x - 2.5, y - 2.5);
-// shape.bezierCurveTo(x - 5, y - 5, x - 5, y - 5, x - 5, y - 5);
-// shape.bezierCurveTo(x + 5, y + 5, x + 5, y + 5, x, y);
-// shape.bezierCurveTo(x - 3, y, x - 3, y + 3.5, x - 3, y + 3.5);
-// shape.bezierCurveTo(x - 3, y + 5.5, x - 1.5, y + 7.7, x + 2.5, y + 9.5);
-// shape.bezierCurveTo(x + 6, y + 7.7, x + 8, y + 4.5, x + 8, y + 3.5);
-// shape.bezierCurveTo(x + 8, y + 3.5, x + 8, y, x + 5, y);
-// shape.bezierCurveTo(x + 3.5, y, x + 2.5, y + 2.5, x + 2.5, y + 2.5);
-
-const extrudeSettings = {
-  steps: 2,
-
-  depth: 2,
-
-  bevelEnabled: true,
-  bevelThickness: 1,
-
-  bevelSize: 1,
-
-  bevelSegments: 2,
-};
-
-const geometry = new THREE.ExtrudeGeometry(shape, extrudeSettings);
-const material = new THREE.MeshStandardMaterial();
-material.roughness = 0.4;
-const mesh = new THREE.Mesh(geometry, material);
-mesh.position.x = -6.2;
-mesh.position.y = -2;
-mesh.position.z = -8.5;
-mesh.rotation.y = 1;
-scene.add(mesh);
-
-gui.add(mesh.rotation, "x").min(-20).max(20).step(0.1).name("frequencyX");
-gui.add(mesh.rotation, "y").min(-20).max(20).step(0.1).name("frequencyY");
-gui.add(mesh.rotation, "z").min(-20).max(20).step(0.1).name("frequencyZ");
 
 /**
  * Renderer
  */
-const renderer = new THREE.WebGLRenderer({
+ const renderer = new THREE.WebGLRenderer({
   canvas: canvas,
   antialias: true,
 });
 renderer.setSize(sizes.width, sizes.height);
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+// Models
+
+// Loader
+const loadingBar = document.querySelector(".loading-bar");
+
+const loadingManager = new THREE.LoadingManager(
+  // Loaded
+  () => {
+    gsap.delayedCall(0.5, () => {
+      gsap.to(overlayMaterial.uniforms.uAlpha, { duration: 0.1, value: 0 })
+      
+      gsap.to(camera.position, { duration: 5, y: 6.25, z: 5 })
+      gsap.to(camera.rotation, { duration: 5, x: -1 })
+      
+      loadingBar.style.display = 'none'
+      setTimeout(() => {
+        overlayGeometry.dispose()
+        overlayMaterial.dispose()
+        scene.remove(overlay)
+      }, 100)
+    })
+  },
+  // Progress
+  (assetUrl, assetsLoaded, assetTotal) => {
+    const progressRatio = assetsLoaded / assetTotal;
+    loadingBar.style.transform = `scale(${progressRatio}, ${progressRatio})`
+  }
+)
+const gltfLoader = new GLTFLoader(loadingManager)
+gltfLoader.load(
+  '/textures/galaxyManModel.gltf',
+  (gltf) => {
+    gltf.scene.scale.set(0.4, 0.4, 0.4)
+    gltf.scene.position.y += 2
+    gltf.scene.position.z += -1
+    gltf.scene.rotation.x += -0.5
+    scene.add(gltf.scene)
+  }
+)
+// Galaxy
+const parameters = {
+  count: 50000,
+  size: 0.01,
+  radius: 7,
+  branches: 10,
+  spin: 1,
+  randomness: 2,
+  randomnessPower: 7,
+  insideColor: '#f03902',
+  outsideColor: '#0244e8'
+}
+let geometry = null
+let material = null
+let points = null
+
+const generateGalaxy = () => {
+  if(points !== null){
+    geometry.dispose()
+    material.dispose()
+    scene.remove(points)
+  }
+  geometry = new THREE.BufferGeometry()
+  const positions = new Float32Array(parameters.count*3)
+  const colors = new Float32Array(parameters.count*3)
+  const scales = new Float32Array(parameters.count*1)
+  const randomness = new Float32Array(parameters.count*3)
+
+  const colorInside = new THREE.Color(parameters.insideColor)
+  const colorOutside = new THREE.Color(parameters.outsideColor)
+
+  for(let i = 0; i < parameters.count; i++){
+    const i3 = i * 3
+
+    // Position
+    const RandomNum = Math.random();
+    if(RandomNum > 0.3){
+      const radius = RandomNum * parameters.radius
+      const spinAngle = radius * parameters.spin
+      const branchAngle = (i % parameters.branches) / parameters.branches * 2 * Math.PI
+
+      // Randomness
+      const randomX = Math.pow(Math.random(), parameters.randomnessPower) * (Math.random() < 0.5 ? 1 : -1) * parameters.randomness * radius
+      const randomY = Math.pow(Math.random(), parameters.randomnessPower) * (Math.random() < 0.5 ? 1 : -1) * parameters.randomness * radius
+      const randomZ = Math.pow(Math.random(), parameters.randomnessPower) * (Math.random() < 0.5 ? 1 : -1) * parameters.randomness * radius
+
+      positions[i3+0] = Math.cos(branchAngle + spinAngle) * radius + randomX
+      positions[i3+1] = randomY
+      positions[i3+2] = Math.sin(branchAngle + spinAngle) * radius + randomZ
+
+      randomness[i3 + 0] = randomX
+      randomness[i3 + 1] = randomY
+      randomness[i3 + 2] = randomZ
+    
+      // Color
+      const mixedColor = colorInside.clone()
+      mixedColor.lerp(colorOutside, radius / (parameters.radius + 1))
+
+      colors[i3+0] = mixedColor.r
+      colors[i3+1] = mixedColor.g
+      colors[i3+2] = mixedColor.b
+
+      // Scales
+      scales[i] = Math.random()
+    }
+  }
+  geometry.setAttribute(
+    'position',
+    new THREE.BufferAttribute(positions, 3)
+  )
+
+  geometry.setAttribute(
+    'color',
+    new THREE.BufferAttribute(colors, 3)
+  )
+
+  geometry.setAttribute(
+    'aScale',
+    new THREE.BufferAttribute(scales, 1)
+  )
+
+  geometry.setAttribute(
+    'aRandomness',
+    new THREE.BufferAttribute(randomness, 3)
+  )
+  // Material
+  material = new THREE.ShaderMaterial({
+    // depthWrite: false,
+    transparent: true,
+    blending: THREE.AdditiveBlending,
+    vertexColors: true,
+    uniforms: {
+      uTime: { value: 0 },
+      uSize: { value: 120 * renderer.getPixelRatio() }
+    },
+    vertexShader: galaxyVertexShader,
+    fragmentShader: galaxyFragmentShader
+  })
+
+  // Points
+  points = new THREE.Points(geometry, material)
+  scene.add(points)
+}
+
+generateGalaxy()
+
+
+// gui.add(parameters, 'count').min(100).max(1000000).step(100).onFinishChange(generateGalaxy)
 
 /**
  * Animate
@@ -215,18 +303,105 @@ const clock = new THREE.Clock();
 let lastElapsedTime = 0;
 
 const tick = () => {
+  // stats.begin()
   const elapsedTime = clock.getElapsedTime();
   const deltaTime = elapsedTime - lastElapsedTime;
   lastElapsedTime = elapsedTime;
+  points.rotation.y += deltaTime * 0.1;
 
-  // Update controls
-  controls.update();
+  // Update material
+  material.uniforms.uTime.value = elapsedTime;
 
   // Render
   renderer.render(scene, camera);
 
   // Call tick again on the next frame
   window.requestAnimationFrame(tick);
+  // stats.end()
 };
 
 tick();
+
+
+
+
+
+
+/**
+ * Test mesh
+ */
+// TODO
+// const shape = new THREE.Shape();
+// let x = 0;
+// let y = 0;
+// shape.ellipse(x, y, 5, 4, 0, Math.PI * 2);
+
+// const extrudeSettings = {
+//   steps: 2,
+
+//   depth: 0.1,
+
+//   bevelEnabled: true,
+//   bevelThickness: 0.5,
+
+//   bevelSize: 1,
+
+//   bevelSegments: 2,
+// };
+
+// const geometry = new THREE.ExtrudeGeometry(shape, extrudeSettings);
+
+// const material = new THREE.MeshStandardMaterial();
+// material.roughness = 0.4;
+// material.transparent = true;
+// material.opacity = 0.15;
+// material.color = new THREE.Color(0x0000ff);
+
+// const mesh = new THREE.Mesh(geometry, material);
+// mesh.position.x = -1.25;
+// mesh.position.y = -1;
+// mesh.position.z = -20;
+// mesh.rotation.x = 1.75;
+// mesh.rotation.y = 0;
+// mesh.rotation.z = 0.05;
+
+// const shape2 = new THREE.Shape();
+// shape2.ellipse(0, 0, 10, 5, 0, Math.PI * 2);
+
+// const extrudeSettings2 = {
+//   steps: 2,
+
+//   depth: 0.1,
+
+//   bevelEnabled: true,
+//   bevelThickness: 0.5,
+
+//   bevelSize: 1,
+
+//   bevelSegments: 2,
+// };
+
+// const geometry2 = new THREE.ExtrudeGeometry(shape2, extrudeSettings2);
+// const material2 = new THREE.MeshStandardMaterial();
+// material2.roughness = 0.4;
+// material2.transparent = true;
+// material2.opacity = 0.15;
+// material2.color = new THREE.Color(0xff0000);
+
+// const mesh2 = new THREE.Mesh(geometry2, material2);
+// mesh2.position.x = -1.25;
+// mesh2.position.y = -0.9;
+// mesh2.position.z = -20;
+// mesh2.rotation.x = 1.75;
+// mesh2.rotation.y = 0;
+// mesh2.rotation.z = 0.05;
+
+// scene.add(mesh);
+// scene.add(mesh2);
+
+// gui.add(mesh.position, "x").min(-20).max(20).step(0.01).name("posX");
+// gui.add(mesh.position, "y").min(-20).max(20).step(0.01).name("posY");
+// gui.add(mesh.position, "z").min(-20).max(20).step(0.01).name("posZ");
+// gui.add(mesh.rotation, "x").min(-20).max(20).step(0.01).name("rotX");
+// gui.add(mesh.rotation, "y").min(-20).max(20).step(0.01).name("rotY");
+// gui.add(mesh.rotation, "z").min(-20).max(20).step(0.01).name("rotZ");
