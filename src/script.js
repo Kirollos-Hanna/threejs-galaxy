@@ -178,7 +178,7 @@ const loadingManager = new THREE.LoadingManager(
 )
 const gltfLoader = new GLTFLoader(loadingManager)
 gltfLoader.load(
-  '/textures/galaxyManModel.gltf',
+  './textures/galaxyManModel.gltf',
   (gltf) => {
     gltf.scene.scale.set(0.4, 0.4, 0.4)
     gltf.scene.position.y += 2
